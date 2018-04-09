@@ -55,7 +55,7 @@ class encoder():
         encoded_local_copy[value - self.wing: value + self.wing + 1] = True
         return encoded_local_copy
     
-    def decode(self, column_connections):
+    def decode(self, column_connections, encoded):
         '''
         TODO translate a vector back into a scalar value... used for predictions?
         '''
@@ -63,7 +63,7 @@ class encoder():
         values = float()
         for i in column_connections:
             values += float(i)
-        # Get a mean value?
+        # Get a mean value? Maybe not the best, but we'll see...
         result = values / length
         return result
                 
@@ -90,7 +90,7 @@ class columnCreate():
         for keys in self.connections:
             self.connectionweights[keys] = random.uniform(0.0, 1.0)
         
-	def checkInputSpace(self, encodedarray):
+    def checkInputSpace(self, encodedarray):
         '''
         "encodedarray" value should have been retrieved using "encoder.encode()" class-method.
         Compare connections index with encoder's input space to find matches.
@@ -102,16 +102,18 @@ class columnCreate():
         
         # Local variable to store number of matching connections for this column for this turn.
         connection_counter = 0
-        
+        activated_connections = []
         # Check each connection to see if corresponding index in input space is activated.
         # There are better (faster) ways to do this, but this method is more imperative, allowing 
         # students of HTM to better see the logic of what is happening.
         for i in self.connections:
-          if encodedarray[i] == True:
-            # +1 for the connection counter
-            connection_counter += 1
-            # Update the weight value
-            self.connectionweights[i] += incrememnt
+            if encodedarray[i] == True:
+                # +1 for the connection counter
+                connection_counter += 1
+	        activated_connections.append(i)
+                # Update the weight value
+                self.connectionweights[i] += incrememnt
+	return connection_counter, activated_connections
 		
         
 
@@ -150,13 +152,61 @@ class SpatialPooler():
         self.columns = [columnCreate(encodersize, self.arr) for i in range(poolersize)]
         
 
-    def getValue(self, activation_threshold, encoder):
-        # check each column against the input space        
-        # Get values for each column  
+    def getValue(self, activation_threshold, encodedvalue, encoder):
+        '''
+	check each column against the input space. Takes an encoder object and activation threshold value.
+	'''
+	# to hold our winning columns
+	winningcols = []
+	# to hold the connection indices for winning columns
+	activated_connections = {}
+
+	# Get values for each column.
         for column in self.columns:
-            #value, counts = np.unique(column, return_counts=True)
+	    '''
+	    Run the 'checkInputSpace()' method for each column, and keep those which are above threshold.
+	    '''
+	    ##################################################################################################################
+            ### Eventually settled on moving this functionality to the column itself, but leaving below here for historical reasons.
+	    #value, counts = np.unique(column, return_counts=True)
             #column.connection_match_ctr = dict(zip(value, counts))[1]
-            idx = np.where(column == 1)[0]
-            for value in idx:
-                column.connectionweights[value] += 0.09
-            
+            #idx = np.where(column == 1)[0]
+            #for value in idx:
+            #    column.connectionweights[value] += 0.09
+	    ##################################################################################################################
+	
+	    numconnections, actvconns = column.checkInputSpace(encodedvalue)
+	    if numconnections >= activation_threshold:
+		winningcols.append(column)
+		activated_connections[column] = actvconns
+		
+	
+	# Now have list of winning columns and their activated connections. Let's decode the connections to see how closely they
+	# match the actual input space.
+	predictedvals = []
+	for keys in activated_connections:
+            # Get stored lists from dictionary, pass to the encoder.decode() method, which accepts a list
+	    predictedvals.append(encoder.decode(acivated_connections[keys]))
+	return predictedvals
+	    
+if __name__ == "__main__":
+    # Define connectedness of the spatial poolers' columns to the encoder.
+    connpercent = 50
+    # Number of columns in the spatial pooler
+    poolersize = 200
+    maxsize = 200 # Max scalar value for encoder
+    minsize = 0 # Min scalar value for encoder
+    bucketwidth = 10 # bucketwidth for encoded scalar value
+    
+    #Create encoder object with bucketsize of 10, maxval of 200, and minval of 0... minval is actually optional.
+    encoder_thing = encoder(bucketwidth, maxsize, minsize)
+
+    # Create spatial pooler, which has columns connected to encoder.
+    pooler_object = SpatialPooler(poolersize, connpercent, encoder_thing)
+    # Activation threshold for each columns to the given input space
+    activation_threshold = 4
+    while True:
+        inputval = input("What value to encode? Must be between {} and {}...\n".format(maxsize, minsize))
+        encodedval = encoder_thing.encode(inputval)
+        pooler_predictions = pooler_object.getValue(activation_threshold, encodedval, encoder_thing)
+	print("Predicted values by pooler layer were:\n", pooler_predictions)
