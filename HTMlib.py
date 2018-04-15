@@ -39,6 +39,7 @@ class encoder():
         # Create a boolean array, which explicitly uses 1 byte per value.
         # This is done with the intention of keeping memory size down when
         # possible.
+	# Below functions just creates a 1d array with false bool balues)
         self.arraytemplate = np.zeros((self.size), dtype=np.bool_)
         self.encodedarray = np.zeros((self.size), dtype=np.bool_)
         
